@@ -27,10 +27,9 @@ class ImageDataLoader(DataLoader):
         self.num_datasets=len(self.image_dirs)
         
     def load_image(self, dataset_index, img_index):
-        img_names=os.listdir(self.image_dirs[dataset_index])
-        img_name=img_names[img_index]
-        assert(os.path.exists(op.join(self.image_dirs[dataset_index], img_name)))
-        return cv2.imread(op.join(self.image_dirs[dataset_index], img_name))
+        img_name=op.join(self.image_dirs[dataset_index], '%06d.jpg'%(img_index+1))
+        assert(os.path.exists(img_name))
+        return cv2.imread(img_name)
         
         
 class VideoDataLoader(DataLoader):
@@ -80,12 +79,14 @@ class BaseSelector():
             cat_id=int(items[6])
             score=items[8]
             if target_id!=cur_target_id:
-                cur_target_id=target_id
                 if cur_target_id!=-1 and len(target)>=3:
                     targets.append(target)
                 target=[]
+                cur_target_id=target_id
+
             if cat_id==1 and score>self.cat_conf_thresh:
                 t_entry={}
+                t_entry['label']=self.labels[dataset_index]
                 t_entry['target_id']=target_id-1
                 t_entry['frame_id']=frame_id-1
                 t_entry['bbox']=items[2:6]  #x1,y1,w,h
@@ -116,8 +117,8 @@ class BaseSelector():
 class PairSelector(BaseSelector):
     def __init__(self, data_loader, label_files):
         super(PairSelector, self).__init__(data_loader, label_files)
-        self.visualize=True
-        self.savedir='./visualize_siamese'
+        self.visualize=False
+        self.savedir='./visualize_test'
         if not os.path.exists(self.savedir):
             os.mkdir(self.savedir)
         self.image_index=0
@@ -149,8 +150,12 @@ class PairSelector(BaseSelector):
         
         image1=self.data_loader.load_image(dataset_index,targets[0][sample_indices[0]]['frame_id'])
         image2=self.data_loader.load_image(dataset_index,targets[1][sample_indices[1]]['frame_id'])
-        im_t1=image1[bbox1[1]:min(image1.shape[0],bbox1[1]+bbox1[3]),bbox1[0]:min(image1.shape[1], bbox1[0]+bbox1[2]),:]
-        im_t2=image1[bbox2[1]:min(image2.shape[0],bbox2[1]+bbox2[3]),bbox2[0]:min(image2.shape[1], bbox2[0]+bbox2[2]),:]
+        #x1,y1,x2,y2
+        coords1=[bbox1[0],bbox1[1],min(image1.shape[1],bbox1[0]+bbox1[2]),min(image1.shape[0], bbox1[1]+bbox1[3])]
+        coords2=[bbox2[0],bbox2[1],min(image2.shape[1],bbox2[0]+bbox2[2]),min(image2.shape[0], bbox2[1]+bbox2[3])]
+        
+        im_t1=image1[coords1[1]:coords1[3],coords1[0]:coords1[2],:]
+        im_t2=image2[coords2[1]:coords2[3],coords2[0]:coords2[2],:]
         
         im_t1=cv2.resize(im_t1,(self.net_input_size,self.net_input_size), interpolation=cv2.INTER_CUBIC).astype(np.float32)
         im_t2=cv2.resize(im_t2,(self.net_input_size,self.net_input_size), interpolation=cv2.INTER_CUBIC).astype(np.float32)
@@ -158,13 +163,32 @@ class PairSelector(BaseSelector):
         if self.visualize and self.image_index<=50:
             mid_pad=10
             image_merge=128*np.ones((self.net_input_size, 2*self.net_input_size+mid_pad,3), dtype=np.uint8)
+            raw_image_merge=128*np.ones((image1.shape[0]+image2.shape[0]+mid_pad, max(image1.shape[1],image2.shape[1]), 3),dtype=np.uint8)
+            cv2.rectangle(image1,(coords1[0],coords1[1]),(coords1[2],coords1[3]),(0,255,0),2)
+            cv2.rectangle(image2,(coords2[0],coords2[1]),(coords2[2],coords2[3]),(0,255,0),2)
+            
+            title1=targets[0][sample_indices[0]]['label']+':%d:%d'%(targets[0][sample_indices[0]]['target_id']+1,targets[0][sample_indices[0]]['frame_id']+1)
+            title2=targets[1][sample_indices[1]]['label']+':%d:%d'%(targets[1][sample_indices[1]]['target_id']+1,targets[1][sample_indices[1]]['frame_id']+1)
+            
+            coord_text1='%d,%d,%d,%d'%(coords1[0],coords1[1],coords1[2]-coords1[0], coords1[3]-coords1[1])
+            coord_text2='%d,%d,%d,%d'%(coords2[0],coords2[1],coords2[2]-coords2[0], coords2[3]-coords2[1])
+            cv2.putText(image1, title1, (0,40), cv2.FONT_HERSHEY_PLAIN, 3.0, (0,0,255), 2)
+            cv2.putText(image2, title2, (0,40), cv2.FONT_HERSHEY_PLAIN, 3.0, (0,0,255), 2)
+            cv2.putText(image1, coord_text1, (int(coords1[0]),int(coords1[1]-40)), cv2.FONT_HERSHEY_PLAIN, 3.0, (0,0,255), 2)
+            cv2.putText(image2, coord_text2, (int(coords2[0]),int(coords2[1]-40)), cv2.FONT_HERSHEY_PLAIN, 3.0, (0,0,255), 2)
+            
+            raw_image_merge[:image1.shape[0],:image1.shape[1],:]=image1
+            raw_image_merge[image1.shape[0]+mid_pad:,:image2.shape[1],:]=image2
+            
             image_merge[:,:self.net_input_size,:]=im_t1
             image_merge[:,self.net_input_size+mid_pad:,:]=im_t2
             if y==1:
                 name=op.join(self.savedir, 'pos_%d.jpg'%self.image_index)
             else:
                 name=op.join(self.savedir, 'neg_%d.jpg'%self.image_index)
+            raw_name=op.join(self.savedir, 'raw_%d.jpg'%self.image_index)
             cv2.imwrite(name, image_merge)
+            cv2.imwrite(raw_name, raw_image_merge)
             self.image_index+=1
                 
         im_t1=(im_t1-128.0)/255.0
@@ -211,7 +235,7 @@ class TripletSelector(BaseSelector):
         
         im_anchor=anchor_image[anchor_bbox[1]:min(anchor_image.shape[0],anchor_bbox[1]+anchor_bbox[3]),anchor_bbox[0]:min(anchor_image.shape[1],anchor_bbox[0]+anchor_bbox[2]),:]
         im_pos=pos_image[pos_bbox[1]:min(pos_image.shape[0],pos_bbox[1]+pos_bbox[3]),pos_bbox[0]:min(pos_image.shape[1],pos_bbox[0]+pos_bbox[2]),:]
-        im_neg=pos_image[neg_bbox[1]:min(neg_image.shape[0],neg_bbox[1]+neg_bbox[3]),neg_bbox[0]:min(neg_image.shape[1],neg_bbox[0]+neg_bbox[2]),:]
+        im_neg=neg_image[neg_bbox[1]:min(neg_image.shape[0],neg_bbox[1]+neg_bbox[3]),neg_bbox[0]:min(neg_image.shape[1],neg_bbox[0]+neg_bbox[2]),:]
         
         im_anchor=cv2.resize(im_anchor,(self.net_input_size,self.net_input_size), interpolation=cv2.INTER_CUBIC).astype(np.float32)
         im_pos=cv2.resize(im_pos,(self.net_input_size,self.net_input_size), interpolation=cv2.INTER_CUBIC).astype(np.float32)
