@@ -58,7 +58,7 @@ class BaseSelector():
         self.batch_size=8
         self.net_input_size=128
         self.cat_conf_thresh=0.6
-        self.same_cat_prob=0.5
+        self.same_cat_prob=0.4
 
         self.parse_labels()
         
@@ -118,7 +118,7 @@ class PairSelector(BaseSelector):
     def __init__(self, data_loader, label_files):
         super(PairSelector, self).__init__(data_loader, label_files)
         self.visualize=False
-        self.savedir='./visualize_test'
+        self.savedir='./visualize_siamese'
         if not os.path.exists(self.savedir):
             os.mkdir(self.savedir)
         self.image_index=0
@@ -130,7 +130,7 @@ class PairSelector(BaseSelector):
         target_indices=[]
         sample_indices=[]
         y=0.0
-        if same_prob>self.same_cat_prob:
+        if same_prob<self.same_cat_prob:
 #        if same_prob>1:
             idx=nr.randint(0,self.num_targets[dataset_index])
             target_indices=[idx,idx]
@@ -191,8 +191,11 @@ class PairSelector(BaseSelector):
             cv2.imwrite(raw_name, raw_image_merge)
             self.image_index+=1
                 
-        im_t1=(im_t1-128.0)/255.0
-        im_t2=(im_t2-128.0)/255.0
+#        im_t1=(im_t1-128.0)/255.0
+#        im_t2=(im_t2-128.0)/255.0
+        
+        im_t1-=im_t1.min();im_t1/=im_t1.max()
+        im_t2-=im_t2.min();im_t2/=im_t2.max()
         
         return im_t1,im_t2,y
     
@@ -209,7 +212,7 @@ class PairSelector(BaseSelector):
 class TripletSelector(BaseSelector):
     def __init__(self, data_loader, label_files):
         super(TripletSelector, self).__init__(data_loader, label_files)
-        self.visualize=True
+        self.visualize=False
         self.savedir='./visualize_triplet'
         self.image_index=0
         if not os.path.exists(self.savedir):
@@ -219,7 +222,7 @@ class TripletSelector(BaseSelector):
         dataset_index=nr.randint(0,self.num_datasets)
 
         target_indices=nr.choice(np.arange(self.num_targets[dataset_index]), size=2, replace=False)
-        targets=[self.targets[target_indices[0]],self.targets[target_indices[1]]]
+        targets=[self.targets[dataset_index][target_indices[0]],self.targets[dataset_index][target_indices[1]]]
         sample_indices=np.hstack((nr.choice(np.arange(len(targets[0])),size=2,replace=False), nr.randint(0,len(targets[1]))))
         anchor_bbox=targets[0][sample_indices[0]]['bbox']
         pos_bbox=targets[0][sample_indices[1]]['bbox']
@@ -229,13 +232,13 @@ class TripletSelector(BaseSelector):
         pos_bbox=np.maximum(0,pos_bbox).astype(np.int32)
         neg_bbox=np.maximum(0,neg_box).astype(np.int32)
         
-        anchor_image=self.data_loader.load_image(self.cap_index,targets[0][sample_indices[0]]['frame_id'])
+        anchor_image=self.data_loader.load_image(dataset_index,targets[0][sample_indices[0]]['frame_id'])
         pos_image=self.data_loader.load_image(dataset_index,targets[0][sample_indices[1]]['frame_id'])
         neg_image=self.data_loader.load_image(dataset_index,targets[1][sample_indices[2]]['frame_id'])
         
         im_anchor=anchor_image[anchor_bbox[1]:min(anchor_image.shape[0],anchor_bbox[1]+anchor_bbox[3]),anchor_bbox[0]:min(anchor_image.shape[1],anchor_bbox[0]+anchor_bbox[2]),:]
         im_pos=pos_image[pos_bbox[1]:min(pos_image.shape[0],pos_bbox[1]+pos_bbox[3]),pos_bbox[0]:min(pos_image.shape[1],pos_bbox[0]+pos_bbox[2]),:]
-        im_neg=neg_image[neg_bbox[1]:min(neg_image.shape[0],neg_bbox[1]+neg_bbox[3]),neg_bbox[0]:min(neg_image.shape[1],neg_bbox[0]+neg_bbox[2]),:]
+        im_neg=pos_image[neg_bbox[1]:min(neg_image.shape[0],neg_bbox[1]+neg_bbox[3]),neg_bbox[0]:min(neg_image.shape[1],neg_bbox[0]+neg_bbox[2]),:]
         
         im_anchor=cv2.resize(im_anchor,(self.net_input_size,self.net_input_size), interpolation=cv2.INTER_CUBIC).astype(np.float32)
         im_pos=cv2.resize(im_pos,(self.net_input_size,self.net_input_size), interpolation=cv2.INTER_CUBIC).astype(np.float32)
@@ -245,16 +248,20 @@ class TripletSelector(BaseSelector):
             mid_pad=10
             image_merge=128*np.ones((self.net_input_size, 3*self.net_input_size+2*mid_pad,3), dtype=np.uint8)
             image_merge[:,:self.net_input_size,:]=im_anchor
-            image_merge[:,self.net_input_size+mid_pad:,:]=im_pos
+            image_merge[:,self.net_input_size+mid_pad:2*self.net_input_size+mid_pad,:]=im_pos
             image_merge[:,2*(self.net_input_size+mid_pad):,:]=im_neg
             
             name=op.join(self.savedir, 'triplet_%d.jpg'%self.image_index)
             cv2.imwrite(name, image_merge)
             self.image_index+=1
 
-        im_anchor=(im_anchor-128.0)/255.0
-        im_pos=(im_pos-128.0)/255.0
-        im_neg=(im_neg-128.0)/255.0
+#        im_anchor=(im_anchor-128.0)/255.0
+#        im_pos=(im_pos-128.0)/255.0
+#        im_neg=(im_neg-128.0)/255.0
+        
+        im_anchor-=im_anchor.min();im_anchor/=im_anchor.max()
+        im_pos-=im_pos.min();im_pos/=im_pos.max()
+        im_neg-=im_neg.min();im_neg/=im_neg.max()
         
         return im_anchor,im_pos,im_neg
     

@@ -8,6 +8,7 @@ Siamese fc network for tracking
 import torch
 import torch.nn as nn
 from collections import OrderedDict
+from math import sqrt
 
 class Vgg(nn.Module):
     def __init__(self):
@@ -28,6 +29,7 @@ class Vgg(nn.Module):
         convs=[]
         convs.append(nn.Conv2d(in_channels, out_channels, kernel_size=3, 
                                stride=1, padding=1, bias=True))
+        convs.append(nn.ReLU(inplace=True))
         for i in range(1,thickness):
             convs.append(nn.Conv2d(out_channels, out_channels, kernel_size=3, 
                                stride=1, padding=1, bias=True))
@@ -103,8 +105,8 @@ class Vgg(nn.Module):
     def apply_fix(self):
         for param in self.layer1.parameters():
             param.requires_grad=False
-        for param in self.layer2.parameters():
-            param.requires_grad=False
+#        for param in self.layer2.parameters():
+#            param.requires_grad=False
     
     def show_structure(self):
         print('Named parameters:')
@@ -128,13 +130,14 @@ class SiameseNet(nn.Module):
         self.stride*=2
         blocks=[]
         conv_out=(self.net_input_size/self.stride)**2*256
-        blocks.append(nn.Linear(conv_out, 2048))
+        blocks.append(nn.Linear(conv_out, 1024))
         blocks.append(nn.ReLU(inplace=True))
-        blocks.append(nn.Linear(2048, 256))
+        blocks.append(nn.Linear(1024, 256))
         blocks.append(nn.ReLU(inplace=True))
-        blocks.append(nn.Linear(256,64))
+        blocks.append(nn.Linear(256, 128))
         
         self.task=nn.Sequential(*blocks)
+        
         if not pretrain:
             self.init_weights(self)
         else:
@@ -145,11 +148,13 @@ class SiameseNet(nn.Module):
     def init_weights(self, module):
         for m in module.modules():
             if isinstance(m,nn.Conv2d):
-                m.weight.data.normal_(0,0.001)
-                m.bias.data.fill_(-1)
+                m.weight.data.normal_(0,1)
+#                torch.nn.init.xavier_uniform_(m.weight.data, gain=sqrt(2.0))
+                m.bias.data.zero_()
             elif isinstance(m,nn.Linear):
-                m.weight.data.normal_(0,0.001)
-                m.bias.data.fill_(-1)
+                m.weight.data.normal_(0,1)
+#                torch.nn.init.xavier_uniform_(m.weight.data, gain=sqrt(2.0))
+                m.bias.data.zero_()
             elif isinstance(m,nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
@@ -169,7 +174,7 @@ class SiameseNet(nn.Module):
     
 class TripletNet(nn.Module):
     def __init__(self, pretrain=False):
-        super(SiameseNet,self).__init__()
+        super(TripletNet,self).__init__()
         self.vgg=Vgg()
         self.vgg.make_vgg()
         self.net_input_size=128
@@ -181,11 +186,11 @@ class TripletNet(nn.Module):
         blocks=[]
         conv_out=(self.net_input_size/self.stride)**2*256
 
-        blocks.append(nn.Linear(conv_out, 2048))
+        blocks.append(nn.Linear(conv_out, 1024))
         blocks.append(nn.ReLU(inplace=True))
-        blocks.append(nn.Linear(2048, 256))
+        blocks.append(nn.Linear(1024, 256))
         blocks.append(nn.ReLU(inplace=True))
-        blocks.append(nn.Linear(256,64))
+        blocks.append(nn.Linear(256, 128))
         
         self.task=nn.Sequential(*blocks)
         if not pretrain:
@@ -196,14 +201,14 @@ class TripletNet(nn.Module):
             self.init_weights(self.task)
     
     def init_weights(self, module):
-        for m in module.modules:
+        for m in module.modules():
             if isinstance(m,nn.Conv2d):
-                m.weight.data.normal_(0,0.001)
-                m.bias.data.fill_(-1)
+                m.weight.data.normal_(0,1)
+                m.bias.data.zero_()
             elif isinstance(m,nn.Linear):
-                m.weight.data.normal_(0,0.001)
-                m.bias.data.fill_(-1)
-            elif isinstance(m.nn.BatchNorm2d):
+                m.weight.data.normal_(0,1)
+                m.bias.data.zero_()
+            elif isinstance(m,nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
     
@@ -220,6 +225,86 @@ class TripletNet(nn.Module):
         
         out3=self.vgg(x3)
         out3=self.maxpool(out3)
-        out2=out3.view(out3.size()[0],-1)
-        out2=self.task(out3)
+        out3=out3.view(out3.size()[0],-1)
+        out3=self.task(out3)
         return out1, out2, out3
+    
+class SimpleSiameseNet(nn.Module):
+    def __init__(self, pretrain=False):
+        super(SimpleSiameseNet,self).__init__()
+        self.net_input_size=128
+        self.out_channels=16
+        convs=[]
+        convs.append(nn.Conv2d(3, 56, kernel_size=3, stride=1, padding=1, bias=True))
+        convs.append(nn.ReLU(inplace=True))
+        convs.append(nn.MaxPool2d(2,stride=2))
+        convs.append(nn.Conv2d(56, 128, kernel_size=3, stride=1, padding=1, bias=True))
+        convs.append(nn.ReLU(inplace=True))
+        convs.append(nn.MaxPool2d(2,stride=2))
+        convs.append(nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1, bias=True))
+        convs.append(nn.ReLU(inplace=True))
+        convs.append(nn.MaxPool2d(2,stride=2))
+        convs.append(nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=True))
+        convs.append(nn.ReLU(inplace=True))
+        convs.append(nn.MaxPool2d(2,stride=2))
+        convs.append(nn.Conv2d(256, self.out_channels, kernel_size=3, stride=1, padding=1, bias=True))
+        convs.append(nn.ReLU(inplace=True))
+        convs.append(nn.MaxPool2d(2,stride=2))
+        
+        self.stride=2**5
+        
+        self.backbone=nn.Sequential(*convs)
+        
+        blocks=[]
+        conv_out=(self.net_input_size/self.stride)**2*self.out_channels
+        blocks.append(nn.Linear(conv_out, 256))
+        blocks.append(nn.ReLU(inplace=True))
+        blocks.append(nn.Linear(256, 256))
+        blocks.append(nn.ReLU(inplace=True))
+        blocks.append(nn.Linear(256,64))
+        
+        self.task=nn.Sequential(*blocks)
+        
+        self.init_weights(self.backbone)
+        self.init_weights(self.task)
+        
+    def init_weights(self, module):
+        for m in module.modules():
+            if isinstance(m,nn.Conv2d):
+                print('conv2d')
+                m.weight.data.normal_(0,0.1)
+                m.bias.data.zero_()
+            elif isinstance(m,nn.Linear):
+                print('linear')
+                m.weight.data.normal_(0,0.1)
+                m.bias.data.zero_()
+            elif isinstance(m,nn.BatchNorm2d):
+                print('batchnorm')
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+                
+    def load_weights(self, model_path=None):
+        model_dict = self.state_dict()
+        print('loading model from {}'.format(model_path))
+        try:
+            pretrained_dict = torch.load(model_path)
+            tmp = OrderedDict()
+            for k,v in pretrained_dict.items():
+                if k in model_dict:
+                    tmp[k] = v
+            model_dict.update(tmp)
+            self.load_state_dict(model_dict)
+        except:
+            print ('loading model failed, {} may not exist'.format(model_path))
+            
+    def forward(self, x1, x2):
+#        print(x1[0,0])
+        out1=self.backbone(x1)
+        out1=out1.view(out1.size()[0],-1)
+        out1=self.task(out1)
+#        print(out1[0,0])
+        out2=self.backbone(x2)
+        out2=out2.view(out2.size()[0],-1)
+        out2=self.task(out2)
+        
+        return out1, out2
