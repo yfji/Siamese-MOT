@@ -82,10 +82,10 @@ class TripletTracker:
                 g_steps=stepvalues[step_index+1]-stepvalues[step_index]
                 step_index+=1
             if i>0 and i%snapshot==0:
-                torch.save(self.triplet.state_dict(), 'models_triplet/model_iter%d.pkl'%i)
-                print('Snapshot to models_siamese/model_iter%d.pkl'%i)
+                torch.save(self.triplet.state_dict(), 'models_triplet/model_iter_%d.pkl'%i)
+                print('Snapshot to models_siamese/model_iter_%d.pkl'%i)
             step+=1
-        torch.save(self.triplet.state_dict(), 'models_triplet/model_%d.pkl'%max_iter)
+        torch.save(self.triplet.state_dict(), 'models_triplet/model_iter_%d.pkl'%max_iter)
     
     def test(self):
         pass

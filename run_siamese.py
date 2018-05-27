@@ -73,8 +73,11 @@ class SiameseTracker:
             if i%display==0:
                 print('[Info][%d/%d] loss: %f, learn rate: %e'%(i,max_iter,loss, lr))
                 dist=dist.data.cpu().numpy()
-                pos_dist=np.mean(dist[y_np==1],axis=0)
-                neg_dist=np.mean(dist[y_np==0],axis=0)
+                pos_labels=(y_np==1)
+                neg_labels=(y_np==0)
+                
+                pos_dist=np.mean(dist[pos_labels],axis=0) if len(np.nonzero(pos_labels)[0])>0 else 0 
+                neg_dist=np.mean(dist[neg_labels],axis=0) if len(np.nonzero(neg_labels)[0])>0 else 0 
                 print('pos pair dist: %f\nneg pair dist: %f'%(pos_dist,neg_dist))
             if i==stepvalues[step_index]:
                 for param_group in optimizer.param_groups:
@@ -85,10 +88,10 @@ class SiameseTracker:
                 g_steps=stepvalues[step_index+1]-stepvalues[step_index]
                 step_index+=1
             if i>0 and i%snapshot==0:
-                torch.save(self.siamese.state_dict(), 'models_siamese/model_iter%d.pkl'%i)
-                print('Snapshot to models_siamese/model_iter%d.pkl'%i)
+                torch.save(self.siamese.state_dict(), 'models_siamese/model_iter_%d.pkl'%i)
+                print('Snapshot to models_siamese/model_iter_%d.pkl'%i)
             step+=1
-        torch.save(self.siamese.state_dict(), 'models_siamese/model_%d.pkl'%max_iter)
+        torch.save(self.siamese.state_dict(), 'models_siamese/model_iter_%d.pkl'%max_iter)
     
     def test(self):
         pass

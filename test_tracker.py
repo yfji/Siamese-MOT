@@ -14,7 +14,8 @@ import loss
 import os
 import os.path as op
 import numpy as np
-
+import numpy.random as nr
+import cv2
 
 class SiameseTracker:
     def __init__(self):
@@ -24,75 +25,57 @@ class SiameseTracker:
         self.dataset_dirs=[op.join(self.dataset_root,_dir,'img1') for _dir in dirs]
         self.label_files=[op.join(self.dataset_root,_dir,'gt/gt.txt') for _dir in dirs]
         
-        self.siamese=model.SiameseNet(pretrain=True)
+        self.siamese=model.SiameseNet(pretrain=False, init=False)
+        self.siamese.load_weights(model_path='models_siamese/model_iter_8000.pkl')
 #        self.siamese=model.SimpleSiameseNet()
         self.siamese.cuda()
         self.siamese_loss=loss.OnlineContrastiveLoss(margin=20)
         self.siamese_loss.cuda()
-        data_loader=selector.ImageDataLoader(self.dataset_dirs)
-        self.pair_selector=selector.PairSelector(data_loader, self.label_files)
-    
-    def train(self):
-        max_iter=8000
-        lr=0.000006
-        decay_ratio=0.1
-        display=20
-        snapshot=1000
-        step_index=0
-        stepvalues=[4000,6000,8000]
-        g_steps=stepvalues[0]
-        
-        param_groups=[]
-        for key, value in self.siamese.named_parameters():
-            if value.requires_grad:
-                param_groups.append({'params': value, 'lr': lr})
-            
-        optimizer = optim.SGD(param_groups, lr=lr, momentum=0.9)
-
-        step_index=0
-        step=0
-        for i in range(max_iter):
-            pair_samples, y_np=self.pair_selector.get_data()
-            
-            pos_samples=Variable(torch.FloatTensor(pair_samples[:,0,:,:,:]).cuda())   #[N,C,H,W]
-            neg_samples=Variable(torch.FloatTensor(pair_samples[:,1,:,:,:]).cuda())
-            y=Variable(torch.FloatTensor(y_np).cuda())
-#            y=torch.FloatTensor(y).contiguous().cuda(async=True)
-            
-            pos_feat, neg_feat=self.siamese(pos_samples, neg_samples)
-            
-            loss, dist=self.siamese_loss(pos_feat,neg_feat,y)
-            
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            
-            rate=lr*np.power(decay_ratio,step/g_steps)
-            for param_group in optimizer.param_groups:
-                param_group['lr']=rate        
-            if i%display==0:
-                print('[Info][%d/%d] loss: %f, learn rate: %e'%(i,max_iter,loss, rate))
-                dist=dist.data.cpu().numpy()
-                pos_dist=np.mean(dist[y_np==1],axis=0)
-                neg_dist=np.mean(dist[y_np==0],axis=0)
-                print('pos pair dist: %f\nneg pair dist: %f'%(pos_dist,neg_dist))
-            if i==stepvalues[step_index]:
-                print('learn rate decay: %e'%rate)
-                step=0
-                lr=rate
-                g_steps=stepvalues[step_index+1]-stepvalues[step_index]
-                step_index+=1
-            if i>0 and i%snapshot==0:
-                torch.save(self.siamese.state_dict(), 'models_siamese/model_iter%d.pkl'%i)
-                print('Snapshot to models_siamese/model_iter%d.pkl'%i)
-            step+=1
-        torch.save(self.siamese.state_dict(), 'models_siamese/model_%d.pkl'%max_iter)
+        self.data_loader=selector.ImageDataLoader(self.dataset_dirs)
+        self.selector=selector.BaseSelector(self.data_loader, self.label_files)
     
     def test(self):
         pass
     
+    def gen_samples(self):
+        base_dir='./test_samples'
+        all_targets=self.selector.targets
+        num_targets=self.selector.num_targets
+        num_datasets=self.selector.num_datasets
+        
+        dataset_index=nr.randint(0,num_datasets)
+        targets=all_targets[dataset_index]
+        
+        p_index=nr.randint(0,num_targets[dataset_index])
+        pos_targets=targets[p_index]
+        for i, t in enumerate(pos_targets):
+            frame_id=t['frame_id']
+            bbox=t['bbox']
+            image=self.data_loader.load_image(dataset_index, frame_id)
+            bbox=np.maximum(0,bbox).astype(np.int32)
+            coords=[bbox[0],bbox[1],min(image.shape[1],bbox[0]+bbox[2]),min(image.shape[0], bbox[1]+bbox[3])]
+        
+            im=image[coords[1]:coords[3],coords[0]:coords[2],:]
+            cv2.imwrite(op.join(base_dir, 'pos_%d.jpg'%i), im)
+        for i in range(len(pos_targets)):
+            n_index=p_index
+            while(n_index==p_index):
+                n_index=nr.randint(0,num_targets[dataset_index])
+            n_targets=targets[n_index]
+            n_t=n_targets[nr.randint(0,len(n_targets))]
+            
+            frame_id=n_t['frame_id']
+            bbox=n_t['bbox']
+            
+            image=self.data_loader.load_image(dataset_index, frame_id)
+            bbox=np.maximum(0,bbox).astype(np.int32)
+            coords=[bbox[0],bbox[1],min(image.shape[1],bbox[0]+bbox[2]),min(image.shape[0], bbox[1]+bbox[3])]
+        
+            im=image[coords[1]:coords[3],coords[0]:coords[2],:]
+            cv2.imwrite(op.join(base_dir, 'neg_%d.jpg'%i), im)
+    
     def run(self, mode='train'):
-        self.train()
+        self.gen_samples()
 
 if __name__=='__main__':
     os.environ['CUDA_VISIBLE_DIVICES']='0'

@@ -119,7 +119,7 @@ class Vgg(nn.Module):
 #        print('========\nModules:')
         
 class SiameseNet(nn.Module):
-    def __init__(self, pretrain=False):
+    def __init__(self, pretrain=False, init=False):
         super(SiameseNet,self).__init__()
         self.vgg=Vgg()
         self.vgg.make_vgg()
@@ -138,13 +138,27 @@ class SiameseNet(nn.Module):
         
         self.task=nn.Sequential(*blocks)
         
-        if not pretrain:
+        if not pretrain and init:
             self.init_weights(self)
-        else:
+        elif pretrain:
             self.vgg.load_backbone(model_path='/home/yfji/Pretrained/pytorch/vgg19.pth.2')
             self.vgg.apply_fix()
             self.init_weights(self.task)
     
+    def load_weights(self, model_path=''):
+        model_dict = self.state_dict()
+        print('loading model from {}'.format(model_path))
+        try:
+            pretrained_dict = torch.load(model_path)
+            tmp = OrderedDict()
+            for k,v in pretrained_dict.items():
+                if k in model_dict:
+                    tmp[k] = v
+            model_dict.update(tmp)
+            self.load_state_dict(model_dict)
+        except:
+            print ('loading model failed, {} may not exist'.format(model_path))
+            
     def init_weights(self, module):
         for m in module.modules():
             if isinstance(m,nn.Conv2d):
@@ -173,7 +187,7 @@ class SiameseNet(nn.Module):
         return out1, out2
     
 class TripletNet(nn.Module):
-    def __init__(self, pretrain=False):
+    def __init__(self, pretrain=False, init=False):
         super(TripletNet,self).__init__()
         self.vgg=Vgg()
         self.vgg.make_vgg()
@@ -193,9 +207,9 @@ class TripletNet(nn.Module):
         blocks.append(nn.Linear(256, 128))
         
         self.task=nn.Sequential(*blocks)
-        if not pretrain:
+        if not pretrain and init:
             self.init_weights(self)
-        else:
+        elif pretrain:
             self.vgg.load_backbone(model_path='/home/yfji/Pretrained/pytorch/vgg19.pth.2')
             self.vgg.apply_fix()
             self.init_weights(self.task)

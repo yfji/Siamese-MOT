@@ -37,7 +37,8 @@ class OnlineContrastiveLoss(nn.Module):
     def __init__(self, margin=10):
         super(OnlineContrastiveLoss, self).__init__()
         self.margin = margin
-
+        self.index=0
+        
     def forward(self, xps, xns, labels):
 #        if embeddings.is_cuda:
 #            positive_pairs = positive_pairs.cuda()
@@ -53,11 +54,15 @@ class OnlineContrastiveLoss(nn.Module):
         dist_l2=torch.sum(torch.pow(xps_vec-xns_vec,2),1)
         dist=torch.sqrt(dist_l2)
 #        print('dist: %f'%dist.mean())
-        positive_loss = torch.clamp(0.5*labels*dist_l2,max=10000.0)
+        positive_loss = torch.clamp(0.5*labels*dist_l2,max=100.0)
         negative_loss = 0.5*(1.0-labels)*torch.pow(F.relu(1.0*self.margin - dist),2)
+        if self.index==20:
 #        negative_loss=0.5*(1.0-labels)*torch.pow(torch.clamp(1.0*self.margin-dist, min=0.0), 2)
-#        print(positive_loss)
-#        print(negative_loss)
+        
+            print('pos loss',positive_loss.mean())
+            print('neg loss',negative_loss.mean())
+            self.index=0
+        self.index+=1
         loss=positive_loss+negative_loss
         return loss.mean(), dist
 
