@@ -117,10 +117,10 @@ class Vgg(nn.Module):
         for k,v in model_dict.items():
             print(k,v.shape)
 #        print('========\nModules:')
-        
-class SiameseNet(nn.Module):
+
+class EmbeddingNet(nn.Module):
     def __init__(self, pretrain=False, init=False):
-        super(SiameseNet,self).__init__()
+        super(EmbeddingNet,self).__init__()
         self.vgg=Vgg()
         self.vgg.make_vgg()
         self.net_input_size=128
@@ -172,75 +172,44 @@ class SiameseNet(nn.Module):
             elif isinstance(m,nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
-    
-    def forward(self, x1, x2):
-        out1=self.vgg(x1)
-        out1=self.maxpool(out1)
-        out1=out1.view(out1.size()[0],-1)
-        out1=self.task(out1)
         
-        out2=self.vgg(x2)
-        out2=self.maxpool(out2)
-        out2=out2.view(out2.size()[0],-1)
-        out2=self.task(out2)
+    def forward(self, x):
+        out=self.vgg(x)
+        out=self.maxpool(out)
+        out=out.view(out.size()[0],-1)
+        out=self.task(out)
+        
+        return out
+    
+class SiameseNet(nn.Module):
+    def __init__(self, pretrain=False, init=False):
+        super(SiameseNet, self).__init__()
+        self.embedding=EmbeddingNet(pretrain=pretrain, init=init)
+        self.net_input_size=self.embedding.net_input_size
+    
+    def load_weights(self, model_path=''):
+        self.embedding.load_weights(model_path=model_path)
+        
+    def forward(self, x1, x2):
+        out1=self.embedding(x1)
+        out2=self.embedding(x2)
         
         return out1, out2
     
 class TripletNet(nn.Module):
     def __init__(self, pretrain=False, init=False):
         super(TripletNet,self).__init__()
-        self.vgg=Vgg()
-        self.vgg.make_vgg()
-        self.net_input_size=128
-        self.stride=self.vgg.backbone_stride
-        
-        self.maxpool=nn.MaxPool2d(2, stride=2)
-        self.stride*=2
-
-        blocks=[]
-        conv_out=(self.net_input_size/self.stride)**2*256
-
-        blocks.append(nn.Linear(conv_out, 1024))
-        blocks.append(nn.ReLU(inplace=True))
-        blocks.append(nn.Linear(1024, 256))
-        blocks.append(nn.ReLU(inplace=True))
-        blocks.append(nn.Linear(256, 128))
-        
-        self.task=nn.Sequential(*blocks)
-        if not pretrain and init:
-            self.init_weights(self)
-        elif pretrain:
-            self.vgg.load_backbone(model_path='/home/yfji/Pretrained/pytorch/vgg19.pth.2')
-            self.vgg.apply_fix()
-            self.init_weights(self.task)
+        self.embedding=EmbeddingNet(pretrain=pretrain, init=init)
+        self.net_input_size=self.embedding.net_input_size
     
-    def init_weights(self, module):
-        for m in module.modules():
-            if isinstance(m,nn.Conv2d):
-                m.weight.data.normal_(0,1)
-                m.bias.data.zero_()
-            elif isinstance(m,nn.Linear):
-                m.weight.data.normal_(0,1)
-                m.bias.data.zero_()
-            elif isinstance(m,nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-    
+    def load_weights(self, model_path=''):
+        self.embedding.load_weights(model_path=model_path)
+
     def forward(self, x1,x2,x3):
-        out1=self.vgg(x1)
-        out1=self.maxpool(out1)
-        out1=out1.view(out1.size()[0],-1)
-        out1=self.task(out1)
+        out1=self.embedding(x1)
+        out2=self.embedding(x2)
+        out3=self.embedding(x3)
         
-        out2=self.vgg(x2)
-        out2=self.maxpool(out2)
-        out2=out2.view(out2.size()[0],-1)
-        out2=self.task(out2)
-        
-        out3=self.vgg(x3)
-        out3=self.maxpool(out3)
-        out3=out3.view(out3.size()[0],-1)
-        out3=self.task(out3)
         return out1, out2, out3
     
 class SimpleSiameseNet(nn.Module):
