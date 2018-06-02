@@ -18,28 +18,28 @@ import numpy as np
 
 class TripletTracker:
     def __init__(self):
-        self.model_path='/home/yfji/Pretrained/pytorch/vgg19.pth.2'
+#        self.model_path='/home/yfji/Pretrained/pytorch/vgg19.pth.2'
         self.dataset_root='/mnt/sda6/MOT2017/train'
         dirs=os.listdir(self.dataset_root)
         self.dataset_dirs=[op.join(self.dataset_root,_dir,'img1') for _dir in dirs]
         self.label_files=[op.join(self.dataset_root,_dir,'gt/gt.txt') for _dir in dirs]
         
-        self.triplet=model.TripletNet(pretrain=True)
+        self.triplet=model.TripletNet(init=True)
 #        self.siamese=model.SimpleSiameseNet()
         self.triplet.cuda()
-        self.trip_loss=loss.OnlineTripletLoss(margin=20)
+        self.trip_loss=loss.OnlineTripletLoss(margin=30)
         self.trip_loss.cuda()
         data_loader=selector.ImageDataLoader(self.dataset_dirs)
         self.trip_selector=selector.TripletSelector(data_loader, self.label_files)
     
     def train(self):
-        max_iter=8000
+        max_iter=80000
         lr=0.000006
-        decay_ratio=0.1
+        decay_ratio=0.333
         display=20
-        snapshot=1000
+        snapshot=20000
         step_index=0
-        stepvalues=[5000,7000,8000]
+        stepvalues=[40000,60000,80000]
         g_steps=stepvalues[0]
         
         param_groups=[]
@@ -68,14 +68,16 @@ class TripletTracker:
             optimizer.step()
             
             rate=lr*np.power(decay_ratio,step/g_steps)
-            for param_group in optimizer.param_groups:
-                param_group['lr']=rate        
+            #for param_group in optimizer.param_groups:
+            #    param_group['lr']=rate        
             if i%display==0:
-                print('[Info][%d/%d] loss: %f, learn rate: %e'%(i,max_iter,loss, rate))
+                print('[Info][%d/%d] loss: %f, learn rate: %e'%(i,max_iter,loss, lr))
                 ap_dist=ap_dist.data.cpu().numpy()
                 an_dist=an_dist.data.cpu().numpy()
                 print('anchor_pos pair dist: %f\nanchor_neg pair dist: %f'%(ap_dist,an_dist))
             if i==stepvalues[step_index]:
+                for param_group in optimizer.param_groups:
+                    param_group['lr']=rate        
                 print('learn rate decay: %e'%rate)
                 step=0
                 lr=rate

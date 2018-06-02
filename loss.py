@@ -49,20 +49,20 @@ class OnlineContrastiveLoss(nn.Module):
         '''
         xps_vec=xps.view(xps.size()[0],-1)
         xns_vec=xns.view(xns.size()[0],-1)
-#        print(xps_vec[0,:16])
-#        print(xns_vec[0,:16])
         dist_l2=torch.sum(torch.pow(xps_vec-xns_vec,2),1)
         dist=torch.sqrt(dist_l2)
 #        print('dist: %f'%dist.mean())
-        positive_loss = torch.clamp(0.5*labels*dist_l2,max=100.0)
+        positive_loss = 0.5*labels*dist_l2
         negative_loss = 0.5*(1.0-labels)*torch.pow(F.relu(1.0*self.margin - dist),2)
-        if self.index==20:
 #        negative_loss=0.5*(1.0-labels)*torch.pow(torch.clamp(1.0*self.margin-dist, min=0.0), 2)
-        
-            print('pos loss',positive_loss.mean())
-            print('neg loss',negative_loss.mean())
-            self.index=0
-        self.index+=1
+#        if self.index==20:
+#            print('pos loss',positive_loss.mean())
+#            print('neg loss',negative_loss.mean())
+#            print(xps_vec[0,:16])
+#            print(xns_vec[0,:16])
+#            print('dist: %f'%dist.mean())
+#            self.index=0
+#        self.index+=1
         loss=positive_loss+negative_loss
         return loss.mean(), dist
 
@@ -84,7 +84,6 @@ class OnlineTripletLoss(nn.Module):
         '''
         triplets: [b,3,dim]
         '''
-        
         ap_distances = torch.sum(torch.pow(anchors - xps, 2), 1)  # .pow(.5)
         an_distances = torch.sum(torch.pow(anchors - xns, 2), 1)  # .pow(.5)
         

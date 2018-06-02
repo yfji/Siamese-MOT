@@ -59,6 +59,9 @@ class BaseSelector():
         self.net_input_size=128
         self.cat_conf_thresh=0.6
         self.same_cat_prob=0.4
+        
+        self.visualize=False
+
 
         self.parse_labels()
         
@@ -117,7 +120,6 @@ class BaseSelector():
 class PairSelector(BaseSelector):
     def __init__(self, data_loader, label_files):
         super(PairSelector, self).__init__(data_loader, label_files)
-        self.visualize=False
         self.savedir='./visualize_siamese'
         if not os.path.exists(self.savedir):
             os.mkdir(self.savedir)
@@ -212,7 +214,6 @@ class PairSelector(BaseSelector):
 class TripletSelector(BaseSelector):
     def __init__(self, data_loader, label_files):
         super(TripletSelector, self).__init__(data_loader, label_files)
-        self.visualize=False
         self.savedir='./visualize_triplet'
         self.image_index=0
         if not os.path.exists(self.savedir):
@@ -226,11 +227,11 @@ class TripletSelector(BaseSelector):
         sample_indices=np.hstack((nr.choice(np.arange(len(targets[0])),size=2,replace=False), nr.randint(0,len(targets[1]))))
         anchor_bbox=targets[0][sample_indices[0]]['bbox']
         pos_bbox=targets[0][sample_indices[1]]['bbox']
-        neg_box=targets[1][sample_indices[2]]['bbox']
+        neg_bbox=targets[1][sample_indices[2]]['bbox']
         
         anchor_bbox=np.maximum(0,anchor_bbox).astype(np.int32)
         pos_bbox=np.maximum(0,pos_bbox).astype(np.int32)
-        neg_bbox=np.maximum(0,neg_box).astype(np.int32)
+        neg_bbox=np.maximum(0,neg_bbox).astype(np.int32)
         
         anchor_image=self.data_loader.load_image(dataset_index,targets[0][sample_indices[0]]['frame_id'])
         pos_image=self.data_loader.load_image(dataset_index,targets[0][sample_indices[1]]['frame_id'])
@@ -238,7 +239,7 @@ class TripletSelector(BaseSelector):
         
         im_anchor=anchor_image[anchor_bbox[1]:min(anchor_image.shape[0],anchor_bbox[1]+anchor_bbox[3]),anchor_bbox[0]:min(anchor_image.shape[1],anchor_bbox[0]+anchor_bbox[2]),:]
         im_pos=pos_image[pos_bbox[1]:min(pos_image.shape[0],pos_bbox[1]+pos_bbox[3]),pos_bbox[0]:min(pos_image.shape[1],pos_bbox[0]+pos_bbox[2]),:]
-        im_neg=pos_image[neg_bbox[1]:min(neg_image.shape[0],neg_bbox[1]+neg_bbox[3]),neg_bbox[0]:min(neg_image.shape[1],neg_bbox[0]+neg_bbox[2]),:]
+        im_neg=neg_image[neg_bbox[1]:min(neg_image.shape[0],neg_bbox[1]+neg_bbox[3]),neg_bbox[0]:min(neg_image.shape[1],neg_bbox[0]+neg_bbox[2]),:]
         
         im_anchor=cv2.resize(im_anchor,(self.net_input_size,self.net_input_size), interpolation=cv2.INTER_CUBIC).astype(np.float32)
         im_pos=cv2.resize(im_pos,(self.net_input_size,self.net_input_size), interpolation=cv2.INTER_CUBIC).astype(np.float32)

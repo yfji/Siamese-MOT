@@ -18,13 +18,13 @@ import numpy as np
 
 class SiameseTracker:
     def __init__(self):
-        self.model_path='/home/yfji/Pretrained/pytorch/vgg19.pth.2'
+#        self.model_path='/home/yfji/Pretrained/pytorch/vgg19.pth.2'
         self.dataset_root='/mnt/sda6/MOT2017/train'
         dirs=os.listdir(self.dataset_root)
         self.dataset_dirs=[op.join(self.dataset_root,_dir,'img1') for _dir in dirs]
         self.label_files=[op.join(self.dataset_root,_dir,'gt/gt.txt') for _dir in dirs]
         
-        self.siamese=model.SiameseNet(pretrain=True)
+        self.siamese=model.SiameseNet(init=True)
 #        self.siamese=model.SimpleSiameseNet()
         self.siamese.cuda()
         self.siamese_loss=loss.OnlineContrastiveLoss(margin=20)
@@ -33,13 +33,13 @@ class SiameseTracker:
         self.pair_selector=selector.PairSelector(data_loader, self.label_files)
     
     def train(self):
-        max_iter=8000
-        lr=0.000006
-        decay_ratio=0.1
+        max_iter=80000
+        lr=0.00002
+        decay_ratio=0.333
         display=20
-        snapshot=2000
+        snapshot=20000
         step_index=0
-        stepvalues=[5000,7000,8000]
+        stepvalues=[40000,60000,80000]
         g_steps=stepvalues[0]
         
         param_groups=[]
