@@ -27,8 +27,14 @@ class Tracker:
         self.dataset_dirs=[op.join(self.dataset_root,_dir,'img1') for _dir in dirs]
         self.label_files=[op.join(self.dataset_root,_dir,'gt/gt.txt') for _dir in dirs]
         
-        self.net=model.SiameseNet(pretrain=False, init=False)
-        self.net.load_weights(model_path='models_siamese/model_iter_80000.pkl')
+        siamese=1
+        
+        if siamese:
+            self.net=model.SiameseNet(pretrain=False, init=False)
+            self.net.load_weights(model_path='models_siamese/model_iter_20000_better.pkl')
+        else:
+            self.net=model.TripletNet(pretrain=False, init=False)
+            self.net.load_weights(model_path='models_triplet/model_iter_80000.pkl')
         self.net.cuda()
     
     def test(self):
@@ -70,8 +76,8 @@ class Tracker:
         neg_dist=[]
         
         for i in range(self.batch_size):
-            prop1=names1[:names1.rfind('_')]
-            prop2=names2[:names2.rfind('_')]
+            prop1=names1[i][:names1[i].rfind('_')]
+            prop2=names2[i][:names2[i].rfind('_')]
             if prop1=='pos' and prop2=='pos':
                 pos_dist.append(dist[i])
             else:
@@ -112,9 +118,12 @@ class Tracker:
         
     
     def gen_samples(self):
-        all_targets=self.selector.targets
-        num_targets=self.selector.num_targets
-        num_datasets=self.selector.num_datasets
+        data_loader=selector.ImageDataLoader(self.dataset_dirs)
+        m_selector=selector.PairSelector(data_loader, self.label_files)
+        
+        all_targets=m_selector.targets
+        num_targets=m_selector.num_targets
+        num_datasets=m_selector.num_datasets
         
         dataset_index=nr.randint(0,num_datasets)
         targets=all_targets[dataset_index]
@@ -124,7 +133,7 @@ class Tracker:
         for i, t in enumerate(pos_targets):
             frame_id=t['frame_id']
             bbox=t['bbox']
-            image=self.data_loader.load_image(dataset_index, frame_id)
+            image=data_loader.load_image(dataset_index, frame_id)
             bbox=np.maximum(0,bbox).astype(np.int32)
             coords=[bbox[0],bbox[1],min(image.shape[1],bbox[0]+bbox[2]),min(image.shape[0], bbox[1]+bbox[3])]
         
@@ -140,7 +149,7 @@ class Tracker:
             frame_id=n_t['frame_id']
             bbox=n_t['bbox']
             
-            image=self.data_loader.load_image(dataset_index, frame_id)
+            image=data_loader.load_image(dataset_index, frame_id)
             bbox=np.maximum(0,bbox).astype(np.int32)
             coords=[bbox[0],bbox[1],min(image.shape[1],bbox[0]+bbox[2]),min(image.shape[0], bbox[1]+bbox[3])]
         
@@ -157,4 +166,4 @@ class Tracker:
 if __name__=='__main__':
     os.environ['CUDA_VISIBLE_DIVICES']='0'
     tracker=Tracker()
-    tracker.run()
+    tracker.run(gen_samples=False)
