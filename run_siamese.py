@@ -27,19 +27,19 @@ class SiameseTracker:
         self.siamese=model.SiameseNet(init=True)
 #        self.siamese=model.SimpleSiameseNet()
         self.siamese.cuda()
-        self.siamese_loss=loss.OnlineContrastiveLoss(margin=20)
+        self.siamese_loss=loss.OnlineContrastiveLoss(margin=40)
         self.siamese_loss.cuda()
         data_loader=selector.ImageDataLoader(self.dataset_dirs)
         self.pair_selector=selector.PairSelector(data_loader, self.label_files)
     
     def train(self):
-        max_iter=80000
-        lr=0.00002
-        decay_ratio=0.333
+        max_iter=100000
+        lr=0.000008
+        decay_ratio=0.1
         display=20
         snapshot=20000
         step_index=0
-        stepvalues=[40000,60000,80000]
+        stepvalues=[60000,100000]
         g_steps=stepvalues[0]
         
         param_groups=[]

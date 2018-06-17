@@ -35,8 +35,15 @@ class Tracker:
         else:
             self.net=model.TripletNet(pretrain=False, init=False)
             self.net.load_weights(model_path='models_triplet/model_iter_80000.pkl')
+        self.net_input_size=self.net.net_input_size
         self.net.cuda()
     
+    def run_data(self, x1, x2):
+        x1=Variable(torch.FloatTensor(x1).cuda())
+        x2=Variable(torch.FloatTensor(x2).cuda())
+        dist_l2, dist_l1=self.net.pairwise_distance(x1, x2)
+        return dist_l1
+        
     def test(self):
         branch1_names=[]
         branch2_names=[]

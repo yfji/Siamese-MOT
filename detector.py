@@ -1,4 +1,5 @@
 import sys
+sys.path.insert(0,'/home/yfji/SourceCode/pytorch-yolo-v3/')
 from darknet import Darknet
 import util
 import os.path as op
@@ -26,7 +27,7 @@ class Detector(object):
         self.nms_thresh=0.4
         self.num_classes=80
         
-        self.yolo_dir='../pytorch-yolo-v3'
+        self.yolo_dir='/home/yfji/SourceCode/pytorch-yolo-v3/'
         self.classes=util.load_classes(op.join(self.yolo_dir, 'data/coco.names'))
         self.colors=pickle.load(open(op.join(self.yolo_dir, 'pallete'), 'rb'))
         
