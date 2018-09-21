@@ -23,7 +23,7 @@ class Detector(object):
             
         print('load network finish')
         
-        self.confidence=0.5
+        self.confidence=0.8
         self.nms_thresh=0.4
         self.num_classes=80
         

@@ -27,14 +27,15 @@ class Tracker:
         self.dataset_dirs=[op.join(self.dataset_root,_dir,'img1') for _dir in dirs]
         self.label_files=[op.join(self.dataset_root,_dir,'gt/gt.txt') for _dir in dirs]
         
-        siamese=1
+        siamese=0
         
         if siamese:
             self.net=model.SiameseNet(pretrain=False, init=False)
+#            self.net.load_weights(model_path='models_siamese/model_iter_100000.pkl')
             self.net.load_weights(model_path='models_siamese/model_iter_20000_better.pkl')
         else:
             self.net=model.TripletNet(pretrain=False, init=False)
-            self.net.load_weights(model_path='models_triplet/model_iter_80000.pkl')
+            self.net.load_weights(model_path='models_triplet/model_iter_100000.pkl')
         self.net_input_size=self.net.net_input_size
         self.net.cuda()
     
